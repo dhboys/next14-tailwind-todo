@@ -7,7 +7,9 @@ export default function Home() {
         <div className="shrink-0"></div>
         <div>
           <div className="text-xl font-medium text-black">tailwind Test</div>
-          <p className="text-slate-500 text-lg">great !</p>
+          <p className="text-slate-500 text-lg">
+            great ${process.env.NEXT_PUBLIC_NODE_ENV}
+          </p>
         </div>
       </div>
     </main>
