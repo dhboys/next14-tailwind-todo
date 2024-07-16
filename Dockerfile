@@ -1,28 +1,59 @@
-FROM ubuntu:22.04 as base
+FROM node:18-alpine AS base
 
-# 시스템 업데이트 && Git, Vim 설치
-RUN apt-get update && apt-get upgrate -y
-RUN apt-get install -y git vim curl
+# Install dependencies only when needed
+FROM base AS deps
 
-# Node.js && Yarn 설치
-RUN curl -fssL https://deb.nodesource.com/setup_18.x | bash -
-RUN apt-get install -y nodejs
-RUN npm install -g Yarn
-
-# 작업 디렉토리 설정
-RUN mkdir /app
+RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-# Git SSL 인증서 검증 비활성화
-RUN git config --global http.sslVerify false
+# Install dependencies based on the preferred package manager
+COPY package.json ./
+COPY yarn.lock ./
+COPY .pnp.cjs ./
+COPY .pnp.loader.mjs ./
+COPY .yarnrc.yml ./
+COPY .yarn ./.yarn
+RUN yarn install --immutable
 
-# 저장소 클론 및 브랜치 체크아웃
-RUN git clone https://github.com/dhboys/next14-tailwind-todo.git .
-RUN git checkout main
+# Rebuild the source code only when needed
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/.yarn ./.yarn
+COPY --from=deps /app/.pnp.cjs ./pnp.cjs
+COPY . .
 
-# 패키지 설치 및 애플리케이션 실행
-RUN yarn install
+# Next.js collects completely anonymous telemetry data about general usage.
+# Learn more here: https://nextjs.org/telemetry
+# Uncomment the following line in case you want to disable telemetry during the build.
+# ENV NEXT_TELEMETRY_DISABLED 1
 
-CMD ["yarn", "dev"]
+RUN yarn build
 
+# Production image, copy all the files and run next
+FROM base AS runner
+WORKDIR /app
 
+ENV NODE_ENV production
+
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+COPY --from=builder /app/public ./public
+
+# Automatically leverage output traces to reduce image size
+# https://nextjs.org/docs/advanced-features/output-file-tracing
+COPY --from=builder --chown=nextjs:nodejs /app/.pnp.cjs ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+RUN rm -rf ./.yarn/cache
+COPY --from=builder --chown=nextjs:nodejs /app/.yarn ./.yarn/
+
+USER nextjs
+
+EXPOSE 3000
+
+ENV PORT 3000
+
+# CMD ["node", "server.js"]
+CMD ["node", "-r", "./.pnp.cjs", "server.js"]

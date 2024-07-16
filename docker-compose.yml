@@ -1,15 +1,25 @@
 version: '3.8'
 services:
+  # web:
+  #   build:
+  #     context: ./
+  #     dockerfile: Dockerfile
+  #   image: todo-tailwind
+  #   volumes:
+  #     - .:/app
+  #   command: yarn dev
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     NODE_ENV: development
+  #   platform: linux/amd64
   web:
+    container_name: todo-tailwind-web
     build:
       context: ./
       dockerfile: Dockerfile
-    image: todo-tailwind
-    volumes:
-      - .:/app
-    command: yarn dev
+      args:
+        buildno: 1
+    image: life-front-image:latest
     ports:
-      - "3000:3000"
-    environment:
-      NODE_ENV: development
-    platform: linux/amd64
+      - "18001:3000"
